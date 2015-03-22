@@ -1,7 +1,9 @@
 open Cil
+
 module E = Errormsg
 
 let str = ref ""
+let funclist = ref (("","") :: [])
 
 let rec fixcall c =
   match c with
@@ -9,7 +11,10 @@ let rec fixcall c =
                   | Var a when a.vname = "malloc" || a.vname = "free"
                        ->   a.vname ^ ";"
                   | Mem exp -> (fixcallnone exp) ^ "\n"
-                  | Var _ -> ""
+                  | Var a ->try 
+                             (List.assoc a.vname funclist.contents)
+                           with
+                             _ -> ""
 
 and fixcallnone c =
   match c with 
@@ -66,7 +71,7 @@ and fixInstr (i : instr)  =
 (*   in *)
 (*   search f.globals            *)
 
-let rec fixStmt (s : stmt) =
+and fixStmt (s : stmt) =
   match s.skind with
   | Instr il ->
      fixinstrs il
@@ -95,7 +100,7 @@ and fixstmts stms =
 
 and fixBlock (b : block)  = fixstmts b.bstmts
 
-let fixFunction (fd : fundec)  = fixBlock fd.sbody
+and fixFunction (fd : fundec)  = fixBlock fd.sbody
 
 (* let tut1 (f : file) : unit = *)
 (*   let malloc = findOrCreateFunc f  "malloc" intType in *)
@@ -111,18 +116,29 @@ let fixFunction (fd : fundec)  = fixBlock fd.sbody
 (*   | TComp _ -> print_string "come"; print_newline () *)
 (*   | TEnum _ -> print_string "enum"; print_newline () *)
 (*   | TBuiltin_va_list _ -> print_string "builtin"; print_newline () *)
+ 
+and printfuns flists =
+  match flists with
+    (a,b) :: rest ->( if ( a = "") then ()
+                      else
+                        begin
+                        print_string a; print_string ":  "; print_string b ; print_newline ();
+                        printfuns rest
+                        end)
+  | [] -> ()
 
-
-let funclist = []
 
 let tut1 (f : file) : unit =
   try
     (  List.iter (fun g ->
-             match g with
-             | GFun (fd, loc) when( fd.svar.vname != "main") ->
-                str := !str ^ fd.svar.vname ^ " : " ^ ( fixFunction fd )^ "\n"
-             | _ -> () ) 
+                  match g with
+                  | GFun (fd, loc) ->
+                     if (fd.svar.vname = "main") then
+                       ()
+                     else funclist :=  (fd.svar.vname, fixFunction fd) :: !funclist
+                  | _ -> () )
                  f.globals );
-    print_string !str; print_string "new sorce\n";
-  with
-    _ -> print_string "Error: raised by tut1.ml"; print_newline ()
+    
+    printfuns funclist.contents
+      with
+    _ -> print_string "Error: tut1.ml"; print_newline ()
