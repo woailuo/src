@@ -14,6 +14,10 @@ let rec fixcall c =
                   | Var a ->try 
                              (List.assoc a.vname funclist.contents)
                            with
+                             (* ( *)
+                             (*   try *)
+                             (*     let val = findOrCreateFunc a.vname  *)
+                             (* ) *)
                              _ -> ""
 
 and fixcallnone c =
@@ -132,13 +136,23 @@ let tut1 (f : file) : unit =
   try
     (  List.iter (fun g ->
                   match g with
-                  | GFun (fd, loc) ->
+                  | GFun (fd, loc)  ->
                      if (fd.svar.vname = "main") then
                        ()
                      else funclist :=  (fd.svar.vname, fixFunction fd) :: !funclist
                   | _ -> () )
                  f.globals );
-    
-    printfuns funclist.contents
+
+    (  List.iter (fun g ->
+                  match g with
+                  | GFun (fd, loc) ->
+                     if (fd.svar.vname = "main") then
+                        funclist :=  (fd.svar.vname, fixFunction fd) :: !funclist
+                     else ()
+                  | _ -> () )
+                 f.globals );
+
+    printfuns funclist.contents; print_newline ();
+   
       with
     _ -> print_string "Error: tut1.ml"; print_newline ()
