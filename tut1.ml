@@ -12,7 +12,7 @@ let rec fixcall c =
                        ->   a.vname ^ ";"
                   | Mem exp -> (fixcallnone exp) ^ "\n"
                   | Var a ->try 
-                             (List.assoc a.vname funclist.contents)
+                             (List.assoc a.vname funclist.contents) ^ ";"
                            with
                              (* ( *)
                              (*   try *)
@@ -74,17 +74,42 @@ and fixInstr (i : instr)  =
 (* 	  new_decl *)
 (*   in *)
 (*   search f.globals            *)
+and findMorF s =
+  let b =  (String.contains s 'm') || (String.contains s 'f') in
+  b
 
 and fixStmt (s : stmt) =
   match s.skind with
   | Instr il ->
      fixinstrs il
   | If(_,tb,fb,_) ->
-     " ( " ^ (fixBlock tb) ^  " + "  ^ ( fixBlock fb)  ^ " ); "
+     let sb1 = fixBlock tb in
+     let sb2 = fixBlock fb in
+     let b1 = findMorF sb1 in
+     let b2 = findMorF sb2 in
+     begin
+     match (b1,b2) with
+       (true, true) ->  " ( " ^ sb1 ^  " + "  ^ sb2  ^ " ); "
+     | (true, false) ->  " ( " ^ sb1 ^  " + "  ^ "0"  ^ " ); "
+     | (false, true) -> " ( " ^ "0" ^  " + "  ^ sb2  ^ " ); "
+     | (false, false) -> " ( " ^ "0" ^  " + "  ^ "0"  ^ " ); "
+     end
   | Switch(_,b,_,_) ->
-     " ( " ^ ( fixBlock b) ^ " ); "
+     let sb = fixBlock b in
+     let b= findMorF sb in
+     begin
+       match b with
+         true ->   " ( " ^ sb ^ " ); "
+       | false -> "0;"
+     end
   | Loop(b,_,_,_) ->
-      "(ua. " ^ ( fixBlock b) ^ ";a)"
+     let sb = fixBlock b in
+     let b = findMorF sb in
+     begin
+       match b with
+         true ->  "(ua. " ^ sb ^ ";a)"
+       | false -> "(ua. " ^ "0" ^ ";a)"
+     end
   | Block b ->
      fixBlock b
   | TryFinally(b1, b2, _) ->
