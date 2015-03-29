@@ -22,23 +22,7 @@ let outputFile (f : C.file) : unit =
       E.s (E.error "Couldn't open file %s" !O.outFile)
 
 let processOneFile (cil: C.file) : unit =
-  if !(O.enable_tut.(0)) then Tut0.tut0 cil;
   if !(O.enable_tut.(1)) then Tut1.tut1 cil;
-  if !(O.enable_tut.(2)) then Tut2.tut2 ("foo","bar") cil;
-  if !(O.enable_tut.(3)) then Tut3.tut3 cil;
-  if !(O.enable_tut.(4)) then Tut4.tut4 cil;
-  if !(O.enable_tut.(5)) then Tut5.tut5 cil;
-  if !(O.enable_tut.(6)) then Tut6.tut6 cil;
-  if !(O.enable_tut.(7)) then Tut7.tut7 cil;
-  if !(O.enable_tut.(8)) then Tut8.tut8 cil;
-  if !(O.enable_tut.(9)) then Tut9.tut9 cil;
-  if !(O.enable_tut.(10)) then Tut10.tut10 cil;
-  if !(O.enable_tut.(11)) then Tut11.tut11 cil;
-  if !(O.enable_tut.(12)) then Tut12.tut12 cil;
-  if !(O.enable_tut.(13)) then Tut13.tut13 cil;
-  if !(O.enable_tut.(14)) then Tut14.tut14 cil;
-  if !(O.enable_tut.(15)) then Tut15.tut15 cil;
-  if !(O.enable_tut.(16)) then Tut16.tut16 cil;
   outputFile cil
 ;;
 

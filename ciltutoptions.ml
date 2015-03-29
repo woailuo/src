@@ -15,7 +15,7 @@ let warnVararg: bool ref = ref false
 let home : string ref = ref ""
 let merge : bool ref = ref false
 
-let num_tuts = 17
+let num_tuts = 2
 let enable_tut : bool ref array = Array.init num_tuts (fun i -> ref false)
 
 let prover : string ref = ref "Alt-Ergo"

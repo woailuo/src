@@ -37,43 +37,10 @@ and fixInstr (i : instr)  =
   match i with
   | Set((Var vi, NoOffset), _, loc) -> ""
   | Call (_, exp, _ ,location)   ->  fixcallnone exp
-  |  _ -> print_string "other instr "; print_newline (); ""
+  | Asm _-> ""
+  |  _ -> ""
 
-(* let t_file = { fileName = ""; *)
-(*               globinitcalled = true; *)
-(*               globinit = t_fundec t_option; *)
-(*               globals = t_global :: []} *)
 
-(* let t_global = { *)
-
-(* } *)
-
-(* let t_fundec = { svar = t_varinfo; *)
-(*                  sformals = t_varinfo :: []; *)
-(*                  slocals = t_varinfo :: []; *)
-(*                  smaxid = 1; *)
-(*                  sbody = t_block; *)
-(*                  smaxstmtid = 1 t_option; *)
-(*                  sallstmts = t_stmt  :: []} *)
-
-(* let  *)
-
-(* let find_malloc_free (f:file) (name:string) (t:typ) : varinfo =  *)
-(*   let rec search glist =  *)
-(*     match glist with *)
-(* 	GVarDecl(vi,_) :: rest | GFun ({svar = vi},_) :: rest when vi.vname = name -> *)
-(*           if not (isFunctionType vi.vtype) then  *)
-(*             E.s (error ("findOrCreateFunc: can't create %s because another " *)
-(*                         ^^"global exists with that name.") name); *)
-(*           vi *)
-(*       | _ :: rest -> search rest (\* tail recursive *\) *)
-(*       | [] -> (\*not found, so create one *\) *)
-(*           let t' = unrollTypeDeep t in *)
-(* 	  let new_decl = makeGlobalVar name t' in *)
-(* 	  f.globals <- GVarDecl(new_decl, locUnknown) :: f.globals; *)
-(* 	  new_decl *)
-(*   in *)
-(*   search f.globals            *)
 and findMorF s =
   let b =  (String.contains s 'm') || (String.contains s 'f') in
   b
@@ -131,21 +98,6 @@ and fixBlock (b : block)  = fixstmts b.bstmts
 
 and fixFunction (fd : fundec)  = fixBlock fd.sbody
 
-(* let tut1 (f : file) : unit = *)
-(*   let malloc = findOrCreateFunc f  "malloc" intType in *)
-(*   print_string malloc.vname; print_newline (); *)
-(*   match malloc.vtype with *)
-(*     TVoid _ -> print_string "TVoid"; print_newline () *)
-(*   | TInt _ -> print_string "TInt"; print_newline () *)
-(*   | TFloat _  -> print_string "float"; print_newline () *)
-(*   | TPtr _-> print_string "TPtr"; print_newline () *)
-(*   | TArray _ -> print_string "array"; print_newline () *)
-(*   | TFun _ -> print_string "fun"; print_newline () *)
-(*   | TNamed _ -> print_string "name"; print_newline () *)
-(*   | TComp _ -> print_string "come"; print_newline () *)
-(*   | TEnum _ -> print_string "enum"; print_newline () *)
-(*   | TBuiltin_va_list _ -> print_string "builtin"; print_newline () *)
- 
 and printfuns flists =
   match flists with
     (a,b) :: rest ->( if ( a = "") then ()
@@ -178,6 +130,6 @@ let tut1 (f : file) : unit =
                  f.globals );
 
     printfuns funclist.contents; print_newline ();
-   
+
       with
     _ -> print_string "Error: tut1.ml"; print_newline ()
