@@ -117,7 +117,7 @@ let tut1 (f : file) : unit =
                      if (fd.svar.vname = "main") then
                        ()
                      else funclist :=  (fd.svar.vname, fixFunction fd) :: !funclist
-                  | _ -> () )
+                  | _->() )
                  f.globals );
 
     (  List.iter (fun g ->
