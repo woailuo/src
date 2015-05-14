@@ -18,7 +18,37 @@ module E = Errormsg
 
 let isFree = ref false
 
-let rec callFree pname  exp  =
+let rec getPointerName exp =
+           match exp with
+       | Lval a ->
+          (
+            match a with
+              (l, offset) ->
+              (
+                match l with
+                  Var a  -> a.vname;
+                | Mem _ -> print_string "  gcall mem\n"; ""
+              )
+          )
+       | Const a -> ( match a with
+                        CStr a ->  print_string a ;" gcconst\n"; ""
+                      | _ -> print_string " other contents\n" ;""
+       )
+       | SizeOf _ -> print_string " gcsizeof\n"; ""
+       | SizeOfE _ -> print_string " gcsizeofe\n"; ""
+       | SizeOfStr _ -> print_string " gcsizeofstr\n"; ""
+       | AlignOf _ -> print_string " gcalignof\n"; ""
+       | AlignOfE _ -> print_string " gcalignofe\n"; ""
+       | UnOp _ -> print_string " gcunop\n"; ""
+       | BinOp  _ -> print_string " gcbinop\n"; ""
+       | Question _ -> print_string " gcquestion\n"; ""
+       | CastE _ -> print_string " gccaste\n"; ""
+       | AddrOf _ -> print_string " gcaddof\n"; ""
+       | AddrOfLabel _ -> print_string " gcaddroflabel\n"; ""
+       | StartOf _ -> print_string " gcstartof\n"; ""
+
+
+and callFree pname  exp  =
   match exp with
   | Lval a ->
      (
@@ -45,17 +75,27 @@ let rec callFree pname  exp  =
   | AddrOfLabel _ -> print_string " caddroflabel\n"; false
   | StartOf _ -> print_string " cstartof\n"; false
 
-let rec findFreeInstr instr pname =
+and  isSameP pname exps =
+  match exps with
+    [] -> false
+  | exp :: rest ->let e = getPointerName  exp in
+                  let p = getPointerName pname in
+                  if (e == p) then (print_string " same pointer\n"; true)
+                  else isSameP pname rest
+
+and findFreeInstr instr pname =
   match instr with
   | Set _ -> print_string " Set\n"; false
-  | Call (_,exp,exps,location) -> (callFree pname exp )
+  | Call (_,exp,exps,location) -> let b = (callFree pname exp ) in (* there is free ? *)
+                                  if b then (isSameP pname exps) else false
+                                 (* the p of free(p) is same to if(p) ? *)
   | Asm _ -> print_string " asm\n"; false
 
 and  findFreeInstrs instrs pname =
+  (*  to find  whether there is free(p) in instructions and check whether p is same if(p); if found,  returning true otherwise false *)
   match instrs with
     i :: rest -> let b1 =  (findFreeInstr i pname) in
-                 let b2 = (findFreeInstrs rest pname) in
-                 b1 || b2
+                 if b1 then true else  (findFreeInstrs rest pname)
   | [] -> false
 
 and  findFreeFun pname stm =
@@ -125,7 +165,7 @@ and analyStmts (s : stmt) : unit =
                         | true ->  (hasFree tb pr);
                                    let b = !isFree in
                                    match b with
-                                     true -> analyBlock tb
+                                     true -> (s.skind <- Block tb ); analyBlock tb
                                    | false -> print_string " isFree is false\n"
                       )
 
