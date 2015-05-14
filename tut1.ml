@@ -40,7 +40,22 @@ let rec getPointerName exp =
        | AlignOf _ -> print_string " gcalignof\n"; ""
        | AlignOfE _ -> print_string " gcalignofe\n"; ""
        | UnOp _ -> print_string " gcunop\n"; ""
-       | BinOp  _ -> print_string " gcbinop\n"; ""
+       | BinOp (_, exp1,exp2,typ) ->( match typ with
+                                                       TVoid _   -> print_string " tvoid\n"; false
+                                                     | TInt _  -> print_string " tint\n"; false
+                                                     | TFloat  _ -> print_string " tfloat\n"; false
+                                                     | TPtr _ -> true
+                                                     |  TArray _ -> print_string " tvoid\n"; false
+                                                     |  TFun _ -> print_string " tvoid\n"; false
+                                                     | TNamed _  -> print_string " tnamed\n"; false
+                                                     | TComp _ -> print_string " tcomp\n"; false
+                                                     | TEnum _ -> print_string " tenum\n"; false
+                                                     | TBuiltin_va_list  _ -> print_string " tbuiltin_va_list\n"; false
+                                                   );
+         (getPointerName exp1); (getPointerName exp2);
+
+
+         print_string " gcbinop\n"; ""
        | Question _ -> print_string " gcquestion\n"; ""
        | CastE _ -> print_string " gccaste\n"; ""
        | AddrOf _ -> print_string " gcaddof\n"; ""
@@ -107,7 +122,7 @@ and  findFreeFun pname stm =
   | ComputedGoto _ -> print_string "ComputedGoto\n"
   | Break _ -> print_string " Break\n"
   | Continue _ -> print_string " Continue\n"
-  | If(pr,tb,fb,_) -> hasFree tb pr
+  | If(pr,tb,fb,_) -> (hasFree tb pr);(hasFree fb pr)
   | Switch(_,b,_,_) -> print_string " switch \n"
   | Loop(b,_,_,_) -> print_string " loop\n"
   | Block b -> print_string " Block\n"
