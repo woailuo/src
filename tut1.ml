@@ -3,24 +3,24 @@ module E = Errormsg
 
 let isFree = ref false
 
-let rec raiseNullExExp (e : exp) (v : lval) : bool =
-(* returns true iff evaluating e raises a NullEx cased by v *)
-and raiseNullExInstr (i : instr) (v : lval) :  bool =
-(* returns true iff executing i raises a NullEx caused by v *)
-    match e with
-    Set(l, e, _) ->raiseNullExLval l v || raiseNullExExp e v
-    | _ -> failwith "implement here."
+(* let rec raiseNullExExp (e : exp) (v : lval) : bool = *)
+(* (\* returns true iff evaluating e raises a NullEx cased by v *\) *)
+(* and raiseNullExInstr (i : instr) (v : lval) :  bool = *)
+(* (\* returns true iff executing i raises a NullEx caused by v *\) *)
+(*     match e with *)
+(*     Set(l, e, _) ->raiseNullExLval l v || raiseNullExExp e v *)
+(*     | _ -> failwith "implement here." *)
 
-and raiseNullExInstrs (is : instr list) ( v : lval) : bool =
+(* and raiseNullExInstrs (is : instr list) ( v : lval) : bool = *)
 
-and raiseNullExBlock (b:block) (v : lval) : bool =
-  match s.skind with
-  | If(e, b1, b2, _) ->
-     raiseNullExExp e v || (raiseNullExInstrs instrs1 v && raiseNullExInstrs instrs2 v)
-  | Break _ -> false
-  | Loop(b, _, _, _) -> raiseNullExBlock b v
+(* and raiseNullExBlock (b:block) (v : lval) : bool = *)
+(*   match s.skind with *)
+(*   | If(e, b1, b2, _) -> *)
+(*      raiseNullExExp e v || (raiseNullExInstrs instrs1 v && raiseNullExInstrs instrs2 v) *)
+(*   | Break _ -> false *)
+(*   | Loop(b, _, _, _) -> raiseNullExBlock b v *)
 
-and  getPointerName exp =
+let rec  getPointerName exp =
            match exp with
        | Lval a ->
           (
@@ -28,8 +28,8 @@ and  getPointerName exp =
               (l, offset) ->
               (
                 match l with
-                  Var a  -> a.vname;
-                | Mem _ -> print_string "  gcall mem\n"; ""
+                  Var a  -> print_string (" get pointr name : " ^ a.vname ^ "\n"); a.vname
+                | Mem  exp ->  print_string " get pointer name mem: \n";  getPointerName exp
               )
           )
        | Const a -> ( match a with
@@ -168,6 +168,61 @@ and  isPointer (e:exp) =
   | AddrOfLabel _ -> print_string " addroflabel\n"; false
   | StartOf _ -> print_string " startof\n"; false
 
+and raiseNullExExpr exp pt =
+  match exp with
+  | Lval a ->
+     (
+       match a with
+         (l, offset) ->
+         (
+           match l with
+             Var a  -> print_string ( " \n ceshi raise \n" ^ a.vname ^ " ; ");
+                       let b = ( isSameP pt (exp::[])) in
+                       print_string (" ceshi issame pointer \n" ^ (string_of_bool b)); b
+           | Mem _ -> print_string "  call mem\n"; false
+         )
+     )
+  | Const _   | SizeOf _  | SizeOfE _  | SizeOfStr _
+  | AlignOf _   | AlignOfE _   | UnOp _   | BinOp  _  | Question _
+  | CastE _   | AddrOf _   | AddrOfLabel _
+  | StartOf _ -> print_string " raise cstartof \n"; false
+
+
+and raiseNullExInstr ins pt =
+   match ins with
+   | Set (lval, exp, loc) -> (print_string " \n set lval exp : \n" ); (match lval with
+                                (l, offset) -> match l with
+                                                 Var a -> (print_string ( "  :: "^a.vname )); true
+                                               | Mem a -> (print_string " \n raise mem \n"); raiseNullExExpr a pt
+                             )
+   | Call (_,exp,exps,location) -> let raisenull = isSameP pt exps in
+                                  print_string (" raise false :, "^ (string_of_bool raisenull) ^ "\n"); raisenull
+
+      (* let raisenull = raiseNullExExpr exp pt in *)
+      (*                             print_string (" raise false : "^ (string_of_bool raisenull) ^ "\n"); raisenull *)
+  | Asm _ -> print_string " raise asm\n"; false
+
+and raiseNullExInstrs inss pt =
+  match inss with
+    [] -> false
+  | i :: rest -> let b = raiseNullExInstr i pt in
+                 if b then true else raiseNullExInstrs rest pt
+
+and raiseNullExStmt stm pt =
+  match stm.skind with
+  |Instr ins -> raiseNullExInstrs ins pt
+  | Return _   | Goto _   | ComputedGoto _   | Break _   | Continue _ ->
+                                                            print_string " raise error\n"; false
+  | If(pr,tb,fb,_) -> let b =  (raiseNullExStmts tb.bstmts pt) && (raiseNullExStmts fb.bstmts pt) in
+
+  | Switch _   | Loop _   | Block _  | TryFinally _
+  | TryExcept _ -> print_string " raise error2 \n" ; false
+
+and raiseNullExStmts (stmts : stmt list) pt = match stmts with
+  [] -> false (* *)
+  | s :: rest -> let b = raiseNullExStmt s pt in
+                     if b then true else (raiseNullExStmts rest pt)
+
 and analyStmts (s : stmt) : unit =
   match s.skind with
   | Instr il -> print_string " instr\n";
@@ -185,8 +240,11 @@ and analyStmts (s : stmt) : unit =
                                    match b with
                                      true ->  (* has this form:  if(p) {...free(p);..}*)
                                      (* then, to check whether each barch cause NullEx *)
+                                     print_string " \n Start \n";
+                                     let raisenull = raiseNullExStmts tb.bstmts pr in
 
-                                     (print_string " tb is true \n") ;
+                                     if raisenull then  (print_string " \n raise exp, can remove \n") else
+                                       (print_string " \n not raise exp, cannot remove \n")
                                      (* (s.skind <- Block tb ); *)
                                    | false -> print_string " isFree is false\n"
                       )
