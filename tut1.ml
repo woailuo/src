@@ -13,13 +13,12 @@ and raiseNullExInstr (i : instr) (v : lval) :  bool =
 
 and raiseNullExInstrs (is : instr list) ( v : lval) : bool =
 
-and raiseNullExStmt (s : stmt) (v : lval) : bool =
+and raiseNullExBlock (b:block) (v : lval) : bool =
   match s.skind with
   | If(e, b1, b2, _) ->
-     raiseNullExExp e v || (raiseNullExBlock b1 v && raiseNullExBlock b2 v)
+     raiseNullExExp e v || (raiseNullExInstrs instrs1 v && raiseNullExInstrs instrs2 v)
   | Break _ -> false
   | Loop(b, _, _, _) -> raiseNullExBlock b v
-
 
 and  getPointerName exp =
            match exp with
