@@ -1,24 +1,27 @@
 open Cil
 module E = Errormsg
 
-(* and raiseNullExExp (e : exp) (v : lval) : bool = *)
-(* (\* returns true iff evaluating e raises a NullEx cased by v *\) *)
-(* and raiseNullExInstr (i : instr) (v : lval) :  bool = *)
-(* (\* returns true iff executing i raises a NullEx caused by v *\) *)
-(*     match e with *)
-(*     Set(l, e, _) ->raiseNullExLval l v || raiseNullExExp e v *)
-(*     | _ -> failwith "implement here." *)
-(* and raiseNullExInstrs (is : instr list) ( v : lval) : bool = *)
-(* and raiseNullExStmt (s : stmt) (v : lval) : bool = *)
-(*   match s.skind with *)
-(*   | If(e, b1, b2, _) -> *)
-(*      raiseNullExExp e v || (raiseNullExBlock b1 v && raiseNullExBlock b2 v) *)
-(*   | Break _ -> false *)
-(*   | Loop(b, _, _, _) -> raiseNullExBlock b v *)
-
 let isFree = ref false
 
-let rec getPointerName exp =
+let rec raiseNullExExp (e : exp) (v : lval) : bool =
+(* returns true iff evaluating e raises a NullEx cased by v *)
+and raiseNullExInstr (i : instr) (v : lval) :  bool =
+(* returns true iff executing i raises a NullEx caused by v *)
+    match e with
+    Set(l, e, _) ->raiseNullExLval l v || raiseNullExExp e v
+    | _ -> failwith "implement here."
+
+and raiseNullExInstrs (is : instr list) ( v : lval) : bool =
+
+and raiseNullExStmt (s : stmt) (v : lval) : bool =
+  match s.skind with
+  | If(e, b1, b2, _) ->
+     raiseNullExExp e v || (raiseNullExBlock b1 v && raiseNullExBlock b2 v)
+  | Break _ -> false
+  | Loop(b, _, _, _) -> raiseNullExBlock b v
+
+
+and  getPointerName exp =
            match exp with
        | Lval a ->
           (
@@ -40,21 +43,19 @@ let rec getPointerName exp =
        | AlignOf _ -> print_string " gcalignof\n"; ""
        | AlignOfE _ -> print_string " gcalignofe\n"; ""
        | UnOp _ -> print_string " gcunop\n"; ""
-       | BinOp (_, exp1,exp2,typ) ->( match typ with
-                                                       TVoid _   -> print_string " tvoid\n"; false
-                                                     | TInt _  -> print_string " tint\n"; false
-                                                     | TFloat  _ -> print_string " tfloat\n"; false
-                                                     | TPtr _ -> true
-                                                     |  TArray _ -> print_string " tvoid\n"; false
-                                                     |  TFun _ -> print_string " tvoid\n"; false
-                                                     | TNamed _  -> print_string " tnamed\n"; false
-                                                     | TComp _ -> print_string " tcomp\n"; false
-                                                     | TEnum _ -> print_string " tenum\n"; false
-                                                     | TBuiltin_va_list  _ -> print_string " tbuiltin_va_list\n"; false
-                                                   );
-         (getPointerName exp1); (getPointerName exp2);
-
-
+       | BinOp (_, exp1,exp2,typ) ->(* ( match typ with *)
+         (*                                               TVoid _   -> print_string " tvoid\n"; false *)
+         (*                                             | TInt _  -> print_string " tint\n"; false *)
+         (*                                             | TFloat  _ -> print_string " tfloat\n"; false *)
+         (*                                             | TPtr _ -> true *)
+         (*                                             |  TArray _ -> print_string " tvoid\n"; false *)
+         (*                                             |  TFun _ -> print_string " tvoid\n"; false *)
+         (*                                             | TNamed _  -> print_string " tnamed\n"; false *)
+         (*                                             | TComp _ -> print_string " tcomp\n"; false *)
+         (*                                             | TEnum _ -> print_string " tenum\n"; false *)
+         (*                                             | TBuiltin_va_list  _ -> print_string " tbuiltin_va_list\n"; false *)
+         (*                                           ); *)
+         (* (getPointerName exp1); (getPointerName exp2); *)
          print_string " gcbinop\n"; ""
        | Question _ -> print_string " gcquestion\n"; ""
        | CastE _ -> print_string " gccaste\n"; ""
@@ -93,7 +94,7 @@ and callFree pname  exp  =
 and  isSameP pname exps =
   match exps with
     [] -> false
-  | exp :: rest ->let e = getPointerName  exp in
+  | exp :: rest -> let e = getPointerName  exp in
                   let p = getPointerName pname in
                   if (e == p) then (print_string " same pointer\n"; true)
                   else isSameP pname rest
@@ -122,7 +123,10 @@ and  findFreeFun pname stm =
   | ComputedGoto _ -> print_string "ComputedGoto\n"
   | Break _ -> print_string " Break\n"
   | Continue _ -> print_string " Continue\n"
-  | If(pr,tb,fb,_) -> (hasFree tb pr);(hasFree fb pr)
+  | If(pr,tb,fb,_) -> (hasFree tb pname);
+                      let b1 = !isFree in print_string (string_of_bool !isFree);
+                       (hasFree fb pname); print_string (string_of_bool !isFree); let b2 = !isFree in
+                                                         isFree := b1||b2
   | Switch(_,b,_,_) -> print_string " switch \n"
   | Loop(b,_,_,_) -> print_string " loop\n"
   | Block b -> print_string " Block\n"
@@ -136,7 +140,7 @@ and  isPointer (e:exp) =
   match e with
   | Lval a -> ( match a with
                   (lhost, offset) -> match lhost with
-                                       Var info -> print_string info.vname;
+                                       Var info -> print_string (info.vname ^ "\n");
                                                    ( match info.vtype with
                                                        TVoid _   -> print_string " tvoid\n"; false
                                                      | TInt _  -> print_string " tint\n"; false
@@ -180,7 +184,11 @@ and analyStmts (s : stmt) : unit =
                         | true ->  (hasFree tb pr);
                                    let b = !isFree in
                                    match b with
-                                     true -> (s.skind <- Block tb ); analyBlock tb
+                                     true ->  (* has this form:  if(p) {...free(p);..}*)
+                                     (* then, to check whether each barch cause NullEx *)
+
+                                     (print_string " tb is true \n") ;
+                                     (* (s.skind <- Block tb ); *)
                                    | false -> print_string " isFree is false\n"
                       )
 
