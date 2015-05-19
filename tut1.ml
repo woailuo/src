@@ -123,8 +123,8 @@ and  findFreeFun pname stm =
   | Break _ -> print_string " Break\n"
   | Continue _ -> print_string " Continue\n"
   | If(pr,tb,fb,_) -> (hasFree tb pname);
-                      let b1 = !isFree in print_string (string_of_bool !isFree);
-                       (hasFree fb pname); print_string (string_of_bool !isFree); let b2 = !isFree in
+                      let b1 = !isFree in print_string (string_of_bool !isFree); print_newline ();
+                       (hasFree fb pname); print_string (string_of_bool !isFree); print_newline(); let b2 = !isFree in
                                                          isFree := b1||b2
   | Switch(_,b,_,_) -> print_string " switch \n"
   | Loop(b,_,_,_) -> print_string " loop\n"
@@ -176,9 +176,10 @@ and raiseNullExExpr exp pt =
          (l, offset) ->
          (
            match l with
-             Var a  -> print_string ( " \n ceshi raise \n" ^ a.vname ^ " ; ");
+             (* TODO: Consider offset *)
+             Var a  -> print_string ( " \n ceshi raise \n" ^ a.vname ^ " ; \n");
                        let b = ( isSameP pt (exp::[])) in
-                       print_string (" ceshi issame pointer \n" ^ (string_of_bool b)); b
+                       print_string (" ceshi issame pointer \n" ^ (string_of_bool b)); print_newline (); b
            | Mem e -> raiseNullExExpr e pt
          )
      )
@@ -206,6 +207,7 @@ and raiseNullExInstr ins pt =
                              let b1 =  ( raiseNullExLval lval pt) in
                              let b2 = (raiseNullExExpr exp pt) in
                              b1 || b2
+   (* TODO: Doesn't work, maybe because isSameP is wrong. *)
    | Call (_,exp,exps,location) -> let raisenull = isSameP pt exps in
                                   print_string (" raise false :, "^ (string_of_bool raisenull) ^ "\n"); raisenull
   | Asm _ -> print_string " raise asm\n"; false
@@ -223,7 +225,9 @@ and raiseNullExStmt stm pt =
                                                             print_string " raise error\n"; false
   | If(pr,tb,fb,_) -> let b =  (raiseNullExStmts tb.bstmts pt) && (raiseNullExStmts fb.bstmts pt) in
                       b
-  | Switch _   | Loop _   | Block _  | TryFinally _
+  (* TODO: false *)
+  | Loop (b, loc,_,_ ) -> raiseNullExStmts b.bstmts pt
+  | Switch _   | Block _  | TryFinally _
   | TryExcept _ -> print_string " raise error2 \n" ; false
 
 and raiseNullExStmts (stmts : stmt list) pt = match stmts with
@@ -242,7 +246,7 @@ and analyStmts (s : stmt) : unit =
   | If(pr,tb,fb,_) -> let flag = (isPointer pr) in  (* if(exp, block ,block, location)*)
                       (
                         match flag with
-                          false -> print_string " not pointer \n"
+                          false -> print_string " not pointer \n"                         (*TODO: also check that fb contains some instructions *)
                         | true ->  (hasFree tb pr);
                                    let b = !isFree in
                                    match b with
@@ -252,13 +256,14 @@ and analyStmts (s : stmt) : unit =
                                      let raisenull = raiseNullExStmts tb.bstmts pr in
 
                                      if raisenull then  (print_string " \n raise exp, can remove \n") else
-                                       (print_string " \n not raise exp, cannot remove \n")
-                                     (* (s.skind <- Block tb ); *)
+                                       (print_string " \n not raise exp, cannot remove \n");
+
+                                     (s.skind <- Block tb );
                                    | false -> print_string " isFree is false\n"
                       )
 
   | Switch(_,b,_,_) -> print_string " switch\n "
-  | Loop(b,_,_,_) -> print_string " loop\n"
+  | Loop(b,_,_,_) -> analyBlock b
   | Block b -> print_string " Block\n"
   | TryFinally(b1, b2, _) -> print_string " TryFinally\n"
   | TryExcept(b1,_,b2,_) -> print_string " TryExcept\n"
