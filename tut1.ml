@@ -28,7 +28,7 @@ let rec  getPointerName exp =
               (l, offset) ->
               (
                 match l with
-                  Var a  -> print_string (" get pointr name : " ^ a.vname ^ "\n"); a.vname
+                  Var a  -> print_string (" get pointer name var : " ^ a.vname ^ "\n"); a.vname
                 | Mem  exp ->  print_string " get pointer name mem: \n";  getPointerName exp
               )
           )
@@ -179,7 +179,7 @@ and raiseNullExExpr exp pt =
              Var a  -> print_string ( " \n ceshi raise \n" ^ a.vname ^ " ; ");
                        let b = ( isSameP pt (exp::[])) in
                        print_string (" ceshi issame pointer \n" ^ (string_of_bool b)); b
-           | Mem _ -> print_string "  call mem\n"; false
+           | Mem e -> raiseNullExExpr e pt
          )
      )
   | Const _   | SizeOf _  | SizeOfE _  | SizeOfStr _
@@ -187,19 +187,27 @@ and raiseNullExExpr exp pt =
   | CastE _   | AddrOf _   | AddrOfLabel _
   | StartOf _ -> print_string " raise cstartof \n"; false
 
+and raiseNullExLval lval pt =
+  ( match lval with
+                  (lhost, offset) -> match lhost with
+                                       Var info -> print_string (info.vname ^ ": raisenullexlval \n");
+                                                   ( match info.vtype with
+                                                     | TPtr _ -> let ptname = getPointerName pt in
+                                                                 if (info.vname = ptname) then true else false
+                                                     | TVoid _   | TInt _  | TFloat  _  |  TArray _
+                                                     |  TFun _   | TNamed _  | TComp _  | TEnum _
+                                                     | TBuiltin_va_list  _ -> print_string " tbuiltin_va_list\n"; false
+                                                   )
+                                     | Mem exp -> (print_string " \n raise mem \n");  raiseNullExExpr exp pt)
 
 and raiseNullExInstr ins pt =
    match ins with
-   | Set (lval, exp, loc) -> (print_string " \n set lval exp : \n" ); (match lval with
-                                (l, offset) -> match l with
-                                                 Var a -> (print_string ( "  :: "^a.vname )); true
-                                               | Mem a -> (print_string " \n raise mem \n"); raiseNullExExpr a pt
-                             )
+   | Set (lval, exp, loc) -> (print_string " \n set lval exp : \n" );
+                             let b1 =  ( raiseNullExLval lval pt) in
+                             let b2 = (raiseNullExExpr exp pt) in
+                             b1 || b2
    | Call (_,exp,exps,location) -> let raisenull = isSameP pt exps in
                                   print_string (" raise false :, "^ (string_of_bool raisenull) ^ "\n"); raisenull
-
-      (* let raisenull = raiseNullExExpr exp pt in *)
-      (*                             print_string (" raise false : "^ (string_of_bool raisenull) ^ "\n"); raisenull *)
   | Asm _ -> print_string " raise asm\n"; false
 
 and raiseNullExInstrs inss pt =
@@ -214,7 +222,7 @@ and raiseNullExStmt stm pt =
   | Return _   | Goto _   | ComputedGoto _   | Break _   | Continue _ ->
                                                             print_string " raise error\n"; false
   | If(pr,tb,fb,_) -> let b =  (raiseNullExStmts tb.bstmts pt) && (raiseNullExStmts fb.bstmts pt) in
-
+                      b
   | Switch _   | Loop _   | Block _  | TryFinally _
   | TryExcept _ -> print_string " raise error2 \n" ; false
 
