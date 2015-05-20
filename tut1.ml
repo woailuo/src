@@ -3,23 +3,6 @@ module E = Errormsg
 
 let isFree = ref false
 
-(* let rec raiseNullExExp (e : exp) (v : lval) : bool = *)
-(* (\* returns true iff evaluating e raises a NullEx cased by v *\) *)
-(* and raiseNullExInstr (i : instr) (v : lval) :  bool = *)
-(* (\* returns true iff executing i raises a NullEx caused by v *\) *)
-(*     match e with *)
-(*     Set(l, e, _) ->raiseNullExLval l v || raiseNullExExp e v *)
-(*     | _ -> failwith "implement here." *)
-
-(* and raiseNullExInstrs (is : instr list) ( v : lval) : bool = *)
-
-(* and raiseNullExBlock (b:block) (v : lval) : bool = *)
-(*   match s.skind with *)
-(*   | If(e, b1, b2, _) -> *)
-(*      raiseNullExExp e v || (raiseNullExInstrs instrs1 v && raiseNullExInstrs instrs2 v) *)
-(*   | Break _ -> false *)
-(*   | Loop(b, _, _, _) -> raiseNullExBlock b v *)
-
 let rec  getPointerName exp =
            match exp with
        | Lval a ->
@@ -168,7 +151,14 @@ and  isPointer (e:exp) =
   | AddrOfLabel _ -> print_string " addroflabel\n"; false
   | StartOf _ -> print_string " startof\n"; false
 
-and raiseNullExExpr exp pt =
+
+and getOffsetInfo offset =
+  match offset with
+    NoOffset -> print_string " no offset \n"
+  | Field (fdinfo, offset) ->  print_string "  offset field\n "
+  | Index _ -> print_string "  offset index\n"
+
+and raiseNullExExpr pt exp =
   match exp with
   | Lval a ->
      (
@@ -177,21 +167,61 @@ and raiseNullExExpr exp pt =
          (
            match l with
              (* TODO: Consider offset *)
-             Var a  -> print_string ( " \n ceshi raise \n" ^ a.vname ^ " ; \n");
+             Var a  ->
+             (print_string ( " \n raise null expr , var a  \n" ^ a.vname ^ " ; \n"));
                        let b = ( isSameP pt (exp::[])) in
-                       print_string (" ceshi issame pointer \n" ^ (string_of_bool b)); print_newline (); b
-           | Mem e -> raiseNullExExpr e pt
+                       (
+                         match offset with
+                           NoOffset -> print_string " no offset \n"
+                         | Field _ ->  print_string "  offset field\n "
+                         | Index _ -> print_string "  offset index\n"
+                       );
+                       print_string (" var a,  issame pointer : " ^ (string_of_bool b)); print_newline (); b
+           | Mem e ->
+              (
+                print_string ((string_of_bool (e == pt)) ^ "  : mem e b3b \n");
+                print_string ((string_of_bool (e = pt)) ^ "  : mem e b4b \n");
+                         match offset with
+                           NoOffset -> print_string " no offset \n"
+                         | Field ( fieldinfo, offset) ->  print_string  ("  offset field:  " ^ fieldinfo.fname ^ ", "^
+                                                                           fieldinfo.fcomp.cname ^ "\n");
+
+                         | Index _ -> print_string "  offset index\n"
+                       );
+              print_string "  raise null expr mem e: \n";  raiseNullExExpr pt e
          )
      )
-  | Const _   | SizeOf _  | SizeOfE _  | SizeOfStr _
-  | AlignOf _   | AlignOfE _   | UnOp _   | BinOp  _  | Question _
-  | CastE _   | AddrOf _   | AddrOfLabel _
-  | StartOf _ -> print_string " raise cstartof \n"; false
+  | Const c  ->  (match c with
+                   CInt64 _ -> print_string " cint 64\n";false
+                 | CStr s -> print_string (" cstr s : " ^ s ^ " \n");false
+                 | CWStr _ -> print_string " cwstr \n";false
+                 | CChr _ -> print_string " cchr  \n";false
+                 | CReal _ -> print_string " creal \n";false
+                 | CEnum _ -> print_string " cenum \n";false )
+     (* print_string " rasise err const \n";false *)
+  | SizeOf _ -> print_string " rasise err sizeof\n";false
+  | SizeOfE _ -> print_string " rasise err sizeofe \n";false
+  | SizeOfStr _-> print_string " rasise err sizeofstr\n";false
+  | AlignOf _ -> print_string " rasise err alignof \n";false
+  | AlignOfE _ -> print_string " rasise err alignofe \n";false
+  | UnOp _  -> print_string " rasise err unop \n";false
+  | BinOp  _ -> print_string " rasise err binof \n";false
+  | Question _-> print_string " rasise err question \n";false
+  | CastE _-> print_string " rasise err caste \n";false
+  | AddrOf _  -> print_string " rasise err addrof \n";false
+  | AddrOfLabel _ -> print_string " rasise err addroflabel \n";false
+  | StartOf _ -> print_string " raise err  startof \n"; false
 
 and raiseNullExLval lval pt =
   ( match lval with
                   (lhost, offset) -> match lhost with
-                                       Var info -> print_string (info.vname ^ ": raisenullexlval \n");
+                                       Var info -> print_string (info.vname ^ ": raise var info  \n");
+                                                   (
+                                                      match offset with
+                                                        NoOffset -> print_string " no offset \n"
+                                                      | Field _ ->  print_string "  offset field\n "
+                                                      | Index _ -> print_string "  offset index\n"
+                                                   );
                                                    ( match info.vtype with
                                                      | TPtr _ -> let ptname = getPointerName pt in
                                                                  if (info.vname = ptname) then true else false
@@ -199,17 +229,37 @@ and raiseNullExLval lval pt =
                                                      |  TFun _   | TNamed _  | TComp _  | TEnum _
                                                      | TBuiltin_va_list  _ -> print_string " tbuiltin_va_list\n"; false
                                                    )
-                                     | Mem exp -> (print_string " \n raise mem \n");  raiseNullExExpr exp pt)
+                                     | Mem exp ->
+                                                   (
+                                                      match offset with
+                                                        NoOffset -> print_string " no offset \n"
+                                                      | Field _ ->  print_string "  offset field\n "
+                                                      | Index _ -> print_string "  offset index\n"
+                                                   );
+
+                                                   (print_string " \n raise null lval mem \n");  raiseNullExExpr pt exp)
+and iterRaiseExps pt exps =
+  match exps with
+    [] -> false
+  | e :: rest -> (raiseNullExExpr pt e); (print_string "    end iterrasieexp \n "); (iterRaiseExps pt rest);
+
 
 and raiseNullExInstr ins pt =
    match ins with
-   | Set (lval, exp, loc) -> (print_string " \n set lval exp : \n" );
+   | Set (lval, exp, loc) -> (print_string " \n set lval exp : \n" ); (*  int m = *p; or *p = *q; or ... *)
                              let b1 =  ( raiseNullExLval lval pt) in
-                             let b2 = (raiseNullExExpr exp pt) in
-                             b1 || b2
+                            ( print_string " lval end \n" );
+                            let b2 = (raiseNullExExpr pt exp) in
+                            print_string " expr end \n" ;     b1 || b2
    (* TODO: Doesn't work, maybe because isSameP is wrong. *)
-   | Call (_,exp,exps,location) -> let raisenull = isSameP pt exps in
-                                  print_string (" raise false :, "^ (string_of_bool raisenull) ^ "\n"); raisenull
+   | Call (_,exp,exps,location) -> (print_string " call exp exps: \n "); (raiseNullExExpr pt exp);
+                                   print_string " end of the call exp \n Start call exps \n";
+                                   (iterRaiseExps pt exps);
+                                   print_string " end of the call exps \n";
+                                   true;
+
+      (* let raisenull = isSameP pt exps in *)
+      (*                             print_string (" raise call func : "^ (string_of_bool raisenull) ^ "\n"); raisenull *)
   | Asm _ -> print_string " raise asm\n"; false
 
 and raiseNullExInstrs inss pt =
@@ -226,7 +276,7 @@ and raiseNullExStmt stm pt =
   | If(pr,tb,fb,_) -> let b =  (raiseNullExStmts tb.bstmts pt) && (raiseNullExStmts fb.bstmts pt) in
                       b
   (* TODO: false *)
-  | Loop (b, loc,_,_ ) -> raiseNullExStmts b.bstmts pt
+  | Loop (b, loc,_,_ ) ->  false; (* raiseNullExStmts b.bstmts pt *)
   | Switch _   | Block _  | TryFinally _
   | TryExcept _ -> print_string " raise error2 \n" ; false
 
