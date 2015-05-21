@@ -1,37 +1,98 @@
 open Cil
 module E = Errormsg
 
-(* and raiseNullExExpr (pt : lval) exp = *)
+let rec getVarinfoName (e : exp) : string =
+  match e with
+    Lval ( Var a, _ ) -> a.vname
+  | Lval(Mem e ,_) -> getVarinfoName e
+  | _ -> ""
 
-(* and raiseNullExLval lval pt = *)
+and raiseNullExExpr (vi : varinfo) (e : exp) : bool =
+  match e with
+    Lval (Var info, _ ) ->  print_string " ex expr var info \n" ; false
+  | Lval (Mem expr, Field(fieldinfo, offset)) ->
+     print_string " raise mem : p->f \n";
+     if (vi.vname = getVarinfoName expr ) then true else false
+  | Lval (Mem expr, NoOffset) ->
+     print_string " raise mem : *p \n";
+     if (vi.vname = getVarinfoName expr ) then true else false
+  | Lval (Mem expr, _) ->
+     print_string " raise mem no offset :  \n" ; false
 
-(* and iterRaiseExps pt exps = (\* free(exps) or printf("%d", *p)*\) *)
+  | Const c  ->  (match c with
+                    CInt64 _ -> print_string " cint 64\n";false
+                  | CStr s -> print_string (" cstr s : " ^ s ^ " \n");false
+                  | CWStr _ -> print_string " cwstr \n";false
+                  | CChr _ -> print_string " cchr  \n";false
+                  | CReal _ -> print_string " creal \n";false
+                  | CEnum _ -> print_string " cenum \n";false )
+  (* print_string " rasise err const \n";false *)
+  | SizeOf _ -> print_string " rasise err sizeof\n";false
+  | SizeOfE _ -> print_string " rasise err sizeofe \n";false
+  | SizeOfStr _-> print_string " rasise err sizeofstr\n";false
+  | AlignOf _ -> print_string " rasise err alignof \n";false
+  | AlignOfE _ -> print_string " rasise err alignofe \n";false
+  | UnOp _  -> print_string " rasise err unop \n";false
+  | BinOp  (binop, e1, e2,typ) ->  let b1 = raiseNullExExpr vi e1 in
+                                   let b2 = raiseNullExExpr vi e2 in
+                                   b1 || b2
+  | Question _-> print_string " rasise err question \n";false
+  | CastE _-> print_string " rasise err caste \n";false
+  | AddrOf _  -> print_string " rasise err addrof \n";false
+  | AddrOfLabel _ -> print_string " rasise err addroflabel \n";false
+  | StartOf _ -> print_string " raise err  startof \n"; false
 
-(* and raiseNullExInstr ins pt = *)
-(*    match ins with *)
-(*    | Set (lval, exp, loc) -> (print_string " \n set lval exp : \n" ); (\*  int m = *p; or *p = *q; or ... *\) *)
-(*                              let b1 =  ( raiseNullExLval lval pt) in *)
-(*                             ( print_string " lval end \n" ); *)
-(*                             let b2 = (raiseNullExExpr pt exp) in *)
-(*                             print_string " expr end \n" ;     b1 || b2 *)
-(*    | Call(_, Lval(a,NoOffset), [e], loc) when a.vname = "free" && raiseNullExExpr pt e -> *)
-(*       true *)
-(*    (\* TODO: Doesn't work, maybe because isSameP is wrong. *\) *)
-(*    | Call (_,exp,exps,location) -> (print_string " call exp exps: \n "); (raiseNullExExpr pt exp); *)
-(*                                    print_string " end of the call exp \n Start call exps \n"; *)
-(*                                    let b = (iterRaiseExps pt exps) in *)
-(*                                    print_string " end of the call exps \n";  freeCall := false; b *)
-(*    | Asm _ -> print_string " raise asm\n"; false *)
 
-(* and raiseNullExInstrs inss pt = *)
-(*   match inss with *)
-(*     [] -> false *)
-(*   | i :: rest -> let b = raiseNullExInstr i pt in *)
-(*                  if b then true else raiseNullExInstrs rest pt *)
+and raiseNullExLval (vi : varinfo) (va :lval) : bool =
+  match va with
+    (Var a, _) ->  print_string " ex lval var a \n"; false
+  | (Mem exp,Field(fieldinfo, offset) ) ->
+      print_string " raise mem in ex lval  : p->f \n";
+     if (vi.vname = getVarinfo exp ) then true else false
+  | (Mem exp, NoOffset) ->
+      print_string " raise mem in ex lval : *p \n";
+     if (vi.vname = getVarinfo exp ) then true else false
+  | (Mem exp, _) ->  print_string " raise mem  in lval : _  \n"; false
 
-let rec raiseNullExStmt vi stm =
+and iterRaiseExps (vi:varinfo) (exps : exp list) =
+  match exps with
+    [] -> false
+  | e :: rest -> let b1 = (raiseNullExExpr vi e) in
+                 (print_string "    end iter rasi eexp \n ");
+                 let b2 =  (iterRaiseExps vi rest) in
+                 b1 || b2
+
+and raiseFreeNullEx (vi:varinfo) (e : exp) : bool =
+  match e with
+    Lval (Var a, NoOffset) -> a = vi
+  | _ -> false
+
+and  raiseNullExInstr (vi:varinfo)  (ins : instr) : bool =
+   match ins with
+   | Set (lval, exp, loc) -> (print_string " \n set lval exp : \n" ); (*  int m = *p; or *p = *q; or ... *)
+                             let b1 =  ( raiseNullExLval vi lval) in
+                            ( print_string " lval end \n" );
+                            let b2 = (raiseNullExExpr vi exp) in
+                            print_string " expr end \n" ;     b1 || b2
+   | Call(_, Lval(Var a,NoOffset), [e], loc) when a.vname = "free" ->
+      print_string " call var , no offset , free \n ";
+      (raiseFreeNullEx vi e) || (raiseNullExExpr vi e)
+
+   | Call (_,exp,exps,location) ->
+                                   print_string " Start call exps \n";
+                                   let b = (iterRaiseExps vi exps) in
+                                   print_string " end of the call exps \n";   b
+   | Asm _ -> print_string " raise asm\n"; false
+
+and raiseNullExInstrs (vi:varinfo) (inss: instr list) : bool  =
+  match inss with
+    [] -> print_string " instructions nullex : false \n" ; false
+  | i :: rest -> let b = raiseNullExInstr vi i  in
+                 if b then true else raiseNullExInstrs vi rest
+
+and  raiseNullExStmt (vi:varinfo) (stm: stmt) : bool =
   match stm.skind with
-  | Instr ins ->  print_string " instructions \n" (* raiseNullExInstrs ins pt *); false
+  | Instr ins ->  print_string " instructions \n"; (raiseNullExInstrs vi ins)
   | If(guard ,tb,fb,_) -> let b1 =  (raiseNullExStmts vi tb.bstmts ) in
                       let b2  = (raiseNullExStmts  vi fb.bstmts ) in
                       b1 && b2
@@ -72,7 +133,10 @@ and analyStmts (s : stmt) : unit =
      (
        match ispointer with
        false -> print_string " if-guard is not a pointer \n"
-       | true -> raiseNullExStmts vi tb.bstmts; ()
+       | true -> let b = raiseNullExStmts vi tb.bstmts in
+                 match b with
+                   true -> print_string " both raise null exception \n"
+                 | false -> print_string " one or two branches do not raise null exception  \n"
      )
   | If _ -> print_string " if \n"
   | Switch(_,b,_,_) -> print_string " switch\n "
