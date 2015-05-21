@@ -2,6 +2,8 @@ open Cil
 module E = Errormsg
 
 let isFree = ref false
+let isMem = ref false
+let freeCall = ref false
 
 let rec  getPointerName exp =
            match exp with
@@ -165,30 +167,43 @@ and raiseNullExExpr pt exp =
        match a with
          (l, offset) ->
          (
-           match l with
+           match l, offset with
              (* TODO: Consider offset *)
-             Var a  ->
-             (print_string ( " \n raise null expr , var a  \n" ^ a.vname ^ " ; \n"));
-                       let b = ( isSameP pt (exp::[])) in
-                       (
-                         match offset with
-                           NoOffset -> print_string " no offset \n"
-                         | Field _ ->  print_string "  offset field\n "
-                         | Index _ -> print_string "  offset index\n"
-                       );
-                       print_string (" var a,  issame pointer : " ^ (string_of_bool b)); print_newline (); b
-           | Mem e ->
+             Var a,  _  ->
+             (
+               try
+                 print_string ( " \n raise null expr , var a  \n" ^ a.vname ^ ";\n");
+                ( if (a.vname = "free") then freeCall := true);
+                 let b1 = !isMem in
+                 let b2 = (exp = pt) in
+                 isMem := false;
+                 print_string (" var a,  issame pointer : " ^ (string_of_bool !freeCall)^ "  ,  "^ (string_of_bool b1) ^ " , "^ (string_of_bool b2)); print_newline ();
+                 if (!freeCall) then  (if (b1 = false) then b2 else false) else (b1 && b2)
+               with
+                 Out_of_memory ->  print_string " out memory  -1 \n"; false
+               | _ ->  print_string " out memory  0:  \n"; false
+             )
+           | Mem e , Field (fieldinfo, offset2)->
               (
-                print_string ((string_of_bool (e == pt)) ^ "  : mem e b3b \n");
-                print_string ((string_of_bool (e = pt)) ^ "  : mem e b4b \n");
-                         match offset with
-                           NoOffset -> print_string " no offset \n"
-                         | Field ( fieldinfo, offset) ->  print_string  ("  offset field:  " ^ fieldinfo.fname ^ ", "^
-                                                                           fieldinfo.fcomp.cname ^ "\n");
-
-                         | Index _ -> print_string "  offset index\n"
-                       );
-              print_string "  raise null expr mem e: \n";  raiseNullExExpr pt e
+              try
+              print_string "  raise null expr mem e, p->f : \n";
+              let b = (exp = pt) in
+              let b2 = (raiseNullExExpr pt e) in
+              print_string ((string_of_bool b) ^" , " ^(string_of_bool b2));   b || b2
+              with
+                Out_of_memory ->  print_string " out memory1 \n"; false
+              | _ ->  print_string " out memory 2:  \n"; false
+                )
+           | Mem e, _ ->
+              try
+                print_string " raise null expr mem e \n";
+              isMem := true;
+              let b = ( (e = pt) || (raiseNullExExpr pt e) ) in
+              print_string ((string_of_bool (e = pt)) ^ " , " ^ (string_of_bool (raiseNullExExpr pt e)));
+              print_string ("  raise null expr mem e, *p :  " ^string_of_bool b ^ " \n");  b
+              with
+                Out_of_memory ->  print_string " out memory 3 \n"; false
+              | _ ->  print_string " out memory 4:  \n"; false
          )
      )
   | Const c  ->  (match c with
@@ -254,9 +269,8 @@ and raiseNullExInstr ins pt =
    (* TODO: Doesn't work, maybe because isSameP is wrong. *)
    | Call (_,exp,exps,location) -> (print_string " call exp exps: \n "); (raiseNullExExpr pt exp);
                                    print_string " end of the call exp \n Start call exps \n";
-                                   (iterRaiseExps pt exps);
-                                   print_string " end of the call exps \n";
-                                   true;
+                                   let b = (iterRaiseExps pt exps) in
+                                   print_string " end of the call exps \n";  freeCall := false; b
 
       (* let raisenull = isSameP pt exps in *)
       (*                             print_string (" raise call func : "^ (string_of_bool raisenull) ^ "\n"); raisenull *)
@@ -273,8 +287,9 @@ and raiseNullExStmt stm pt =
   |Instr ins -> raiseNullExInstrs ins pt
   | Return _   | Goto _   | ComputedGoto _   | Break _   | Continue _ ->
                                                             print_string " raise error\n"; false
-  | If(pr,tb,fb,_) -> let b =  (raiseNullExStmts tb.bstmts pt) && (raiseNullExStmts fb.bstmts pt) in
-                      b
+  | If(pr,tb,fb,_) -> let b1 =  (raiseNullExStmts tb.bstmts pt) in
+                      let b2  = (raiseNullExStmts fb.bstmts pt) in
+                      b1 && b2
   (* TODO: false *)
   | Loop (b, loc,_,_ ) ->  false; (* raiseNullExStmts b.bstmts pt *)
   | Switch _   | Block _  | TryFinally _
@@ -293,7 +308,9 @@ and analyStmts (s : stmt) : unit =
   | ComputedGoto _ -> print_string "ComputedGoto\n"
   | Break _ -> print_string " Break\n"
   | Continue _ -> print_string " Continue\n"
-  | If(pr,tb,fb,_) -> let flag = (isPointer pr) in  (* if(exp, block ,block, location)*)
+  | If(pr,tb,fb,_) -> (
+    match fb.bstmts with
+                        [] ->   let flag = (isPointer pr) in  (* if(exp, block ,block, location)*)
                       (
                         match flag with
                           false -> print_string " not pointer \n"                         (*TODO: also check that fb contains some instructions *)
@@ -312,6 +329,9 @@ and analyStmts (s : stmt) : unit =
                                    | false -> print_string " isFree is false\n"
                       )
 
+                      | _ -> print_string " fb is not empty \n "
+
+  )
   | Switch(_,b,_,_) -> print_string " switch\n "
   | Loop(b,_,_,_) -> analyBlock b
   | Block b -> print_string " Block\n"
