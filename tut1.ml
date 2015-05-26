@@ -1,26 +1,25 @@
 open Cil
 module E = Errormsg
 
-let beforeNullExTrue = ref false
+let changesPValue = ref false
 
-let rec getVarinfoName (e : exp) : string =
-  match e with
+let rec getVarinfoName (expr : exp) : string =
+  match expr with
     Lval ( Var a, _ ) -> ( print_string (a.vname ^ "\n") );  a.vname
   | Lval(Mem e ,_) -> (print_string " get info name : : ") ;  getVarinfoName e
-  | _ -> ""
+  | _ -> print_string " not lval ";  ""
 
-and raiseNullExExpr (vi : varinfo) (e : exp) : bool =
-  match e with
+and raiseNullExExpr (vi : varinfo) (expr : exp) : bool =
+  match expr with
     Lval (Var info, _ ) ->  print_string (" ex expr var info: "^ info.vname ^" \n" ) ; false
-  | Lval (Mem expr, Field(fieldinfo, offset)) ->
+  | Lval (Mem e, Field(fieldinfo, offset)) ->
      print_string (" raise mem : p->f :  " ^ vi.vname ^ " ; " ^ "\n");
-     if (vi.vname = getVarinfoName expr ) then true else false
-  | Lval (Mem expr, NoOffset) ->
+     if (vi.vname = getVarinfoName e) then true else false
+  | Lval (Mem e, NoOffset) ->
      print_string ( " raise mem : *p :"  ^ vi.vname^ " ; " ^ "\n" );
-     if (vi.vname = getVarinfoName expr ) then true else false
-  | Lval (Mem expr, _) ->
+     if (vi.vname = getVarinfoName e ) then true else false
+  | Lval (Mem e, _) ->
     ( print_string( " raise mem no offset :  " ^ vi.vname ^ " ; "^" \n" )) ; false
-
   | Const c  ->  (match c with
                     CInt64 _ -> print_string " cint 64\n";false
                   | CStr s -> print_string (" cstr s : " ^ s ^ " \n");false
@@ -71,9 +70,9 @@ and raiseFreeNullEx (vi:varinfo) (e : exp) : bool =
 
 and  raiseNullExInstr (vi:varinfo)  (ins : instr) : bool =
   match ins with
-    Set ((Var a,_), _ ,_)  when a.vname = vi.vname -> (* p = q; *)
+    Set ((Var a,_), _ ,_)  when a.vname = vi.vname -> (*  assignment like p = q;  changes p's value*)
     print_string "  instruction changes value of pointer : p = q :   \n";
-    (beforeNullExTrue := true); false
+    (changesPValue := true); false  (* todo *)
    | Set (lval, exp, loc) -> (print_string " \n set lval exp : \n" ); (*  int m = *p; or *p = *q; or ... *)
                              let b1 =  ( raiseNullExLval vi lval) in
                             ( print_string " lval end \n" );
@@ -81,20 +80,23 @@ and  raiseNullExInstr (vi:varinfo)  (ins : instr) : bool =
                             print_string " expr end \n" ;     b1 || b2
    | Call(_, Lval(Var a,NoOffset), [e], loc) when a.vname = "free" ->
       (print_string " start free null exce  \n ");
-     ( print_string " call var , no offset , free \n ");
+      ( print_string " call var , no offset , free function \n ");
       let b1 = (raiseFreeNullEx vi e) in
       let b2 =  (raiseNullExExpr vi e) in
       (print_string (" raise free null ex : "^ string_of_bool b1 ^" \n"));
-       (print_string (" raise null ex  when free : "^ string_of_bool b2 ^" \n"));
+      (print_string (" raise null ex  when free : "^ string_of_bool b2 ^" \n"));
       ( print_string " end free null exception \n ");
-       b1 || b2
+      b1 || b2
+   | Call (Some (Var a, _), _ , exps, loc) when a.vname = vi.vname -> (* changes p's value *)
+           print_string "  functions change value of pointer like : p = functions :   \n";
+           (changesPValue := true); false  (* todo *)
    | Call (Some lval, _, exps, loc) ->
-      (print_string "  start: changes value of pointer : ( p = func();) \n");
-      let b1 = ( vi.vname = getVarinfoName (Lval lval)) in
-      (print_string (" change the pointer  : " ^ string_of_bool b1 ^"\n"));
+       (print_string " Start  call functions \n");
+       let b1 = (raiseNullExLval vi lval) in
+      (print_string (" left value raise null exception   : " ^ string_of_bool b1 ^"\n"));
       let b2 = ( iterRaiseExps vi exps) in
-      (print_string (" the expression raise null exception  : " ^ string_of_bool b2 ^"\n"));
-      (print_string " end :changes value of pointer : (p = func(); ) \n" ); b1 || b2
+      (print_string (" right expression raise null exception  : " ^ string_of_bool b2 ^"\n"));
+      (print_string "  End : call functions like : ( *p = func(); m = func(*p); ) \n" );  b1 || b2
     | Call (None ,exp,exps,location) ->
                                    print_string " Start call exps \n";
                                    let b = (iterRaiseExps vi exps) in
@@ -104,17 +106,29 @@ and  raiseNullExInstr (vi:varinfo)  (ins : instr) : bool =
 and raiseNullExInstrs (vi:varinfo) (inss: instr list) : bool  =
   match inss with
     [] -> print_string " instructions nullex : false \n" ; false
-  | i :: rest -> let b = raiseNullExInstr vi i  in
-                 if b then true else raiseNullExInstrs vi rest
+  | i :: rest ->
+     (
+       let raisenull = raiseNullExInstr vi i  in
+       let changed = !changesPValue in
+       match changed with
+         true -> print_string " pointer's value is changed \n ";  false
+       | false ->  if raisenull then true else raiseNullExInstrs vi rest
+     )
 
 and  raiseNullExStmt (vi:varinfo) (stm: stmt) : bool =
   match stm.skind with
   | Instr ins ->  (print_string "  \n Start instructions:  \n");
                   let b =  (raiseNullExInstrs vi ins) in
                    (print_string " \n  End instructions:  \n"); b
-  | If(guard ,tb,fb,_) -> let b1 =  (raiseNullExStmts vi tb.bstmts ) in
-                      let b2  = (raiseNullExStmts  vi fb.bstmts ) in
-                      b1 && b2
+  | If(guard ,tb,fb,_) ->
+     (
+       let bgd = raiseNullExExpr vi guard in
+       match bgd with
+         true -> true
+       | false -> let btb =  (raiseNullExStmts vi tb.bstmts ) in  (* consider guard part *)
+                      let bfb  = (raiseNullExStmts  vi fb.bstmts ) in
+                      btb && bfb
+     )
   | Loop (b, loc,_,_ ) ->  false
   | Return _   | Goto _   | ComputedGoto _   | Break _   | Continue _
   | Switch _   | Block _  | TryFinally _
@@ -155,10 +169,13 @@ and analyStmts (s : stmt) : unit =
        false -> print_string " if-guard is not a pointer \n"
        | true -> let b = raiseNullExStmts vi tb.bstmts in
                  match b with
-                   true -> print_string " both raise null exception \n"
+                   true -> (s.skind <- Block tb); (analyBlock tb);
+                   print_string " both raise null exception \n"
                  | false -> print_string " one or two branches do not raise null exception  \n"
      );
-     print_string " End Analysis if(_,_,_) \n"
+     changesPValue:= false;
+     print_string " End Analysis if(_,_,_) \n";
+
   | If _ -> print_string " if \n"
   | Switch(_,b,_,_) -> print_string " switch\n "
   | Loop(b,_,_,_) -> analyBlock b
@@ -171,10 +188,27 @@ and analyBlock (b : block) : unit = List.iter analyStmts b.bstmts
 and analyFuns (func : fundec) : unit = analyBlock func.sbody
 
 and tut1 (f : file) : unit =
-  ( List.iter
+  try
+ ( List.iter
       (fun g -> match g with
-                        | GFun (func, loc) -> analyFuns func
-                        | _ -> ()
+                | GFun (func,loc) ->
+                   (print_string " Start GFun: \n");
+                   ( analyFuns func  );
+                   (print_string " End GFun: \n");
+                | GType _ -> print_string " typedef \n"
+                | GCompTag _ -> print_string " Gcomptag \n"
+                | GCompTagDecl _ -> print_string " Gcomptagdecl \n"
+                | GEnumTag _ -> print_string " GenumTag \n"
+                | GEnumTagDecl _ -> print_string " Gcomptagdecl \n"
+                | GVarDecl _ -> print_string " Gvardecl \n"
+                | GVar _ -> print_string " Gvar \n"
+                | GAsm (str, _) -> print_string " Gasm:   " ; print_string (str ^ "\n");
+                | GPragma _ -> print_string " gpragma \n"
+                | GText _ -> print_string " gtext \n"
+                | _ -> print_string "other \n"
       )
       f.globals (*global list :  functions*)
-  )
+
+ )
+   with
+      _ -> print_string " : error \n"
