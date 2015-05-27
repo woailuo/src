@@ -1,13 +1,14 @@
 
 
 
-open Cil            
-module E = Errormsg 
+open Cil
+
 
 
 let tut0 (f : file) : unit =
-  E.log "I'm in tut0 and I could change %s if I wanted to!\n" f.fileName;
-  ()
+  print_string " call tut1: \n";
+
+
 
 
 

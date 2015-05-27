@@ -195,20 +195,20 @@ and tut1 (f : file) : unit =
                    (print_string " Start GFun: \n");
                    ( analyFuns func  );
                    (print_string " End GFun: \n");
-                | GType _ -> print_string " typedef \n"
-                | GCompTag _ -> print_string " Gcomptag \n"
-                | GCompTagDecl _ -> print_string " Gcomptagdecl \n"
-                | GEnumTag _ -> print_string " GenumTag \n"
-                | GEnumTagDecl _ -> print_string " Gcomptagdecl \n"
-                | GVarDecl _ -> print_string " Gvardecl \n"
-                | GVar _ -> print_string " Gvar \n"
-                | GAsm (str, _) -> print_string " Gasm:   " ; print_string (str ^ "\n");
-                | GPragma _ -> print_string " gpragma \n"
-                | GText _ -> print_string " gtext \n"
-                | _ -> print_string "other \n"
+                (* | GType _ -> print_string " typedef \n" *)
+                (* | GCompTag _ -> print_string " Gcomptag \n" *)
+                (* | GCompTagDecl _ -> print_string " Gcomptagdecl \n" *)
+                (* | GEnumTag _ -> print_string " GenumTag \n" *)
+                (* | GEnumTagDecl _ -> print_string " Gcomptagdecl \n" *)
+                (* | GVarDecl _ -> print_string " Gvardecl \n" *)
+                (* | GVar _ -> print_string " Gvar \n" *)
+                (* | GAsm (str, _) -> print_string " Gasm:   " ; print_string (str ^ "\n"); *)
+                (* | GPragma _ -> print_string " gpragma \n" *)
+                (* | GText _ -> print_string " gtext \n" *)
+                | _ -> ()
       )
       f.globals (*global list :  functions*)
 
  )
    with
-      _ -> print_string " : error \n"
+      _ -> print_string " :  unknown  error occurs: kkkk \n"
