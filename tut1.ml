@@ -1,5 +1,4 @@
 open Cil
-module E = Errormsg
 
 let changesPValue = ref false
 
@@ -187,7 +186,7 @@ and analyBlock (b : block) : unit = List.iter analyStmts b.bstmts
 
 and analyFuns (func : fundec) : unit = analyBlock func.sbody
 
-and tut1 (f : file) : unit =
+and tut1(f : file) : unit =
   try
  ( List.iter
       (fun g -> match g with
